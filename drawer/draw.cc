@@ -24,10 +24,9 @@ bool finished() { return !GlobalWindow.isOpen(); }
 void flush() { GlobalWindow.display(); }
 
 void processEvent() {
-  while (GlobalWindow.pollEvent(GlobalEvent)) {
+  while (GlobalWindow.pollEvent(GlobalEvent))
     if (GlobalEvent.type == sf::Event::Closed)
       GlobalWindow.close();
-  }
 }
 
 } // namespace dw
