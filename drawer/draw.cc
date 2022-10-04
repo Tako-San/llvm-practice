@@ -21,7 +21,10 @@ void putPixel(std::size_t y, std::size_t x, std::uint8_t val) {
 
 bool finished() { return !GlobalWindow.isOpen(); }
 
-void flush() { GlobalWindow.display(); }
+void flush() {
+  GlobalWindow.display();
+  GlobalWindow.clear(sf::Color::Black);
+}
 
 void processEvent() {
   while (GlobalWindow.pollEvent(GlobalEvent))
