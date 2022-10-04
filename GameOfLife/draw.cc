@@ -19,17 +19,20 @@ void putPixel(std::size_t y, std::size_t x, std::uint8_t val) {
   GlobalWindow.draw(&vert, /* vertexCount */ 1, sf::Points);
 }
 
-bool finished() { return !GlobalWindow.isOpen(); }
-
-void flush() {
-  GlobalWindow.display();
-  GlobalWindow.clear(sf::Color::Black);
-}
-
 void processEvent() {
   while (GlobalWindow.pollEvent(GlobalEvent))
     if (GlobalEvent.type == sf::Event::Closed)
       GlobalWindow.close();
+}
+
+bool finished() {
+  processEvent();
+  return !GlobalWindow.isOpen();
+}
+
+void flush() {
+  GlobalWindow.display();
+  GlobalWindow.clear(sf::Color::Black);
 }
 
 } // namespace dw

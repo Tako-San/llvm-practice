@@ -9,7 +9,6 @@ void init(std::size_t h, std::size_t w);
 void putPixel(std::size_t y, std::size_t x, std::uint8_t val);
 bool finished();
 void flush();
-void processEvent();
 
 } // namespace dw
 

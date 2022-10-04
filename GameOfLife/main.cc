@@ -9,8 +9,8 @@ void draw(gol::Surf surf) {
 }
 
 int main() {
-  std::size_t h = 180;
-  std::size_t w = 320;
+  std::size_t h = 360;
+  std::size_t w = 640;
 
   gol::Surf surf;
   gol::construct(surf, w, h);
@@ -21,7 +21,6 @@ int main() {
 
   dw::init(h, w);
   while (!dw::finished()) {
-    dw::processEvent();
     gol::calcSurf(tmp, surf);
     gol::swap(tmp, surf);
     draw(surf);
