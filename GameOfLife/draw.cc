@@ -1,17 +1,24 @@
+#include <random>
+
 #include <SFML/Graphics.hpp>
 
-#include "draw.hh"
-
-namespace dw {
+#include "draw.h"
 
 sf::RenderWindow GlobalWindow{};
 sf::Event GlobalEvent{};
 
-void init(std::size_t h, std::size_t w) {
+std::random_device GlobalRD{};
+std::uniform_int_distribution<uint8_t> GlobalDist{0, 1};
+
+extern "C" {
+
+uint8_t getZeroOrOne() { return GlobalDist(GlobalRD); }
+
+void init(size_t h, size_t w) {
   GlobalWindow.create(sf::VideoMode(w, h), "Game of life!");
 }
 
-void putPixel(std::size_t y, std::size_t x, std::uint8_t val) {
+void putPixel(size_t y, size_t x, uint8_t val) {
   auto color = val ? sf::Color::Green : sf::Color::Black;
   sf::Vector2f coords{static_cast<float>(x), static_cast<float>(y)};
   sf::Vertex vert{coords, color};
@@ -25,7 +32,7 @@ void processEvent() {
       GlobalWindow.close();
 }
 
-bool finished() {
+uint8_t finished() {
   processEvent();
   return !GlobalWindow.isOpen();
 }
@@ -34,5 +41,4 @@ void flush() {
   GlobalWindow.display();
   GlobalWindow.clear(sf::Color::Black);
 }
-
-} // namespace dw
+}
