@@ -1,4 +1,4 @@
-find_package(SFML 2.5 COMPONENTS system window graphics REQUIRED)
+find_package(SFML 2.5 REQUIRED COMPONENTS system window graphics REQUIRED)
 
 add_library(DRAW STATIC draw.cc)
 target_link_libraries(DRAW PRIVATE sfml-graphics)
