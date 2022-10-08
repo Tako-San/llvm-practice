@@ -4,7 +4,7 @@ add_library(DRAW STATIC draw.cc)
 target_link_libraries(DRAW PRIVATE sfml-graphics)
 target_compile_features(DRAW PRIVATE cxx_std_20)
 
-add_executable(GOL gol.c main.c)
+add_executable(GOL main.c)
 target_link_libraries(GOL DRAW)
 target_compile_features(GOL PRIVATE c_std_11)
 
