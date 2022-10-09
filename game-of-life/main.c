@@ -1,5 +1,4 @@
 #include "draw.h"
-// #include "gol.h"
 
 #define H 360
 #define W 640
