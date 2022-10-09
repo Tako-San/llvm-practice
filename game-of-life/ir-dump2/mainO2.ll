@@ -11,7 +11,7 @@ define dso_local i32 @main() local_unnamed_addr #0 {
   %1 = alloca [230400 x i8], align 16
   %2 = alloca [230400 x i8], align 16
   %3 = getelementptr inbounds [230400 x i8], [230400 x i8]* %1, i64 0, i64 0
-  call void @llvm.lifetime.start.p0i8(i64 230400, i8* nonnull %3) #3
+  call void @llvm.lifetime.start.p0i8(i64 230400, i8* nonnull %3) #3 ; Tako: We may ignore it
   store i8* %3, i8** @SURF_CUR, align 8, !tbaa !5
   br label %4
 
