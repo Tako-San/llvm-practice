@@ -28,6 +28,37 @@ loop:                                             ; preds = %loop, %entry
   br i1 %cmp, label %return, label %loop
 }
 
+declare internal i8 @calcState(i64 %0, i64 %1)
+
+define internal void @calcSurf() {
+entry:
+  br label %loop.cond.width
+
+loop.cond.height:                                 ; preds = %loop.cond.width
+  %line = phi i64 [ 0, %entry ], [ %0, %loop.cond.width ]
+  %offset = mul nuw nsw i64 %line, 640
+  br label %loop.body
+
+return:                                           ; preds = %loop.cond.width
+  ret void
+
+loop.cond.width:                                  ; preds = %loop.body, %entry
+  %0 = add nuw nsw i64 %line, 1
+  %1 = icmp eq i64 %0, 360
+  br i1 %1, label %return, label %loop.cond.height
+
+loop.body:                                        ; preds = %loop.body, %loop.cond.height
+  %col = phi i64 [ 0, %loop.cond.height ], [ %2, %loop.body ]
+  %idx = add nuw nsw i64 %col, %offset
+  %surf = load i8*, i8** @SURF_NEXT, align 8
+  %ptr = getelementptr i8, i8* %surf, i64 %idx
+  %val = call i8 @calcState(i64 %col, i64 %line)
+  store i8 %val, i8* %ptr, align 1
+  %2 = add i64 %col, 1
+  %3 = icmp eq i64 %2, 640
+  br i1 %3, label %loop.cond.width, label %loop.body
+}
+
 define i32 @main() {
 entry:
   %0 = alloca [230400 x i8], align 1
@@ -46,6 +77,9 @@ loop.cond:                                        ; preds = %loop.body, %entry
   br i1 %5, label %loop.body, label %return
 
 loop.body:                                        ; preds = %loop.cond
+  call void @calcSurf()
+  %6 = call i8 @finished()
+  %7 = call i8 @finished()
   br label %loop.cond
 
 return:                                           ; preds = %loop.cond
