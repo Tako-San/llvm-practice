@@ -90,6 +90,19 @@ auto genFillRand(CBM &cbm, llvm::GlobalVariable *surfCur,
   return func;
 }
 
+auto genCalcNeighboursCommon(CBM &cbm, llvm::GlobalVariable *surfCur) {
+  auto &context = *cbm.context;
+  auto &builder = *cbm.builder;
+  auto *llvmModule = cbm.llvmModule;
+
+  auto *funcType = llvm::FunctionType::get(
+      builder.getInt8Ty(), {builder.getInt64Ty(), builder.getInt64Ty()}, false);
+  auto *func = llvm::Function::Create(funcType, llvm::Function::InternalLinkage,
+                                      "calcNeighboursCommon", llvmModule);
+
+  return func;
+}
+
 auto genCalcState(CBM &cbm, llvm::GlobalVariable *surfCur) {
   auto &context = *cbm.context;
   auto &builder = *cbm.builder;
@@ -100,6 +113,66 @@ auto genCalcState(CBM &cbm, llvm::GlobalVariable *surfCur) {
   auto *func = llvm::Function::Create(funcType, llvm::Function::InternalLinkage,
                                       "calcState", llvmModule);
 
+  auto *entryBB = llvm::BasicBlock::Create(context, "", func);
+  builder.SetInsertPoint(entryBB);
+
+  auto *a0 = func->getArg(0);
+  auto *a1 = func->getArg(1);
+  auto *a3 = builder.CreateLoad(builder.getInt8PtrTy(), surfCur);
+  auto *a4 = builder.CreateAdd(a0, builder.getInt64(-1));
+  auto *a5 = builder.CreateMul(a1, builder.getInt64(640));
+  auto *a6 = builder.CreateAdd(a5, builder.getInt64(-640));
+  auto *a7 = builder.CreateAdd(a6, a4);
+  auto *a8 = builder.CreateGEP(builder.getInt8Ty(), a3, a7);
+  auto *a9 = builder.CreateLoad(builder.getInt8Ty(), a8);
+  auto *a10 = builder.CreateICmpNE(a9, builder.getInt8(0));
+  auto *a11 = builder.CreateZExt(a10, builder.getInt64Ty());
+  auto *a12 = builder.CreateAdd(a5, a4);
+  auto *a13 = builder.CreateGEP(builder.getInt8Ty(), a3, a12);
+  auto *a14 = builder.CreateLoad(builder.getInt8Ty(), a13);
+  auto *a15 = builder.CreateICmpNE(a14, builder.getInt8(0));
+  auto *a16 = builder.CreateZExt(a15, builder.getInt64Ty());
+  auto *a17 = builder.CreateAdd(a16, a11, "", true, true);
+  auto *a18 = builder.CreateAdd(a5, builder.getInt64(640));
+  auto *a19 = builder.CreateAdd(a18, a4);
+  auto *a20 = builder.CreateGEP(builder.getInt8Ty(), a3, a19);
+  auto *a21 = builder.CreateLoad(builder.getInt8Ty(), a20);
+  auto *a22 = builder.CreateICmpNE(a21, builder.getInt8(0));
+  auto *a23 = builder.CreateZExt(a22, builder.getInt64Ty());
+  auto *a24 = builder.CreateAdd(a17, a23, "", true, true);
+  auto *a25 = builder.CreateAdd(a6, a0);
+  auto *a26 = builder.CreateGEP(builder.getInt8Ty(), a3, a25);
+  auto *a27 = builder.CreateLoad(builder.getInt8Ty(), a26);
+  auto *a28 = builder.CreateICmpNE(a27, builder.getInt8(0));
+  auto *a29 = builder.CreateZExt(a28, builder.getInt64Ty());
+  auto *a30 = builder.CreateAdd(a24, a29, "", true, true);
+  auto *a31 = builder.CreateAdd(a18, a0);
+  auto *a32 = builder.CreateGEP(builder.getInt8Ty(), a3, a31);
+  auto *a33 = builder.CreateLoad(builder.getInt8Ty(), a32);
+  auto *a34 = builder.CreateICmpNE(a33, builder.getInt8(0));
+  auto *a35 = builder.CreateZExt(a34, builder.getInt64Ty());
+  auto *a36 = builder.CreateAdd(a30, a35, "", true, true);
+  auto *a37 = builder.CreateAdd(a0, builder.getInt64(1));
+  auto *a38 = builder.CreateAdd(a6, a37);
+  auto *a39 = builder.CreateGEP(builder.getInt8Ty(), a3, a38);
+  auto *a40 = builder.CreateLoad(builder.getInt8Ty(), a39);
+  auto *a41 = builder.CreateICmpNE(a40, builder.getInt8(0));
+  auto *a42 = builder.CreateZExt(a41, builder.getInt64Ty());
+  auto *a43 = builder.CreateAdd(a36, a42, "", true, true);
+  auto *a44 = builder.CreateAdd(a5, a37);
+  auto *a45 = builder.CreateGEP(builder.getInt8Ty(), a3, a44);
+  auto *a46 = builder.CreateLoad(builder.getInt8Ty(), a45);
+  auto *a47 = builder.CreateICmpNE(a46, builder.getInt8(0));
+  auto *a48 = builder.CreateZExt(a47, builder.getInt64Ty());
+  auto *a49 = builder.CreateAdd(a43, a48, "", true, true);
+  auto *a50 = builder.CreateAdd(a18, a37);
+  auto *a51 = builder.CreateGEP(builder.getInt8Ty(), a3, a50);
+  auto *a52 = builder.CreateLoad(builder.getInt8Ty(), a51);
+  auto *a53 = builder.CreateICmpNE(a52, builder.getInt8(0));
+  auto *a54 = builder.CreateZExt(a53, builder.getInt64Ty());
+  auto *a55 = builder.CreateAdd(a49, a54, "", true, true);
+
+  builder.CreateRet(a55);
   return func;
 }
 
