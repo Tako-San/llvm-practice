@@ -5,10 +5,16 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
-#include <llvm/Support/raw_ostream.h>
 
-constexpr size_t W = 640;
-constexpr size_t H = 360;
+#include <llvm/ExecutionEngine/ExecutionEngine.h>
+#include <llvm/ExecutionEngine/GenericValue.h>
+#include <llvm/ExecutionEngine/Interpreter.h>
+
+#include <llvm/Support/TargetSelect.h>
+
+#include "game-of-life/draw.h"
+#include "game-of-life/gol.h"
+
 constexpr size_t HxW = H * W;
 
 struct CBM {
@@ -22,9 +28,8 @@ auto genInit(CBM &cbm) {
 
   auto *funcType = llvm::FunctionType::get(
       builder.getVoidTy(), {builder.getInt64Ty(), builder.getInt64Ty()}, false);
-  auto *func = llvm::Function::Create(
-      funcType, llvm::Function::AvailableExternallyLinkage, "init",
-      cbm.llvmModule);
+  auto *func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage,
+                                      "init", cbm.llvmModule);
   return func;
 }
 
@@ -38,9 +43,8 @@ auto genGetZeroOrOne(CBM &cbm) {
 
 auto genFinished(CBM &cbm) {
   auto *funcType = llvm::FunctionType::get(cbm.builder->getInt8Ty(), false);
-  auto *func = llvm::Function::Create(
-      funcType, llvm::Function::AvailableExternallyLinkage, "finished",
-      cbm.llvmModule);
+  auto *func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage,
+                                      "finished", cbm.llvmModule);
   return func;
 }
 
@@ -98,20 +102,7 @@ auto genCalcNeighboursCommon(CBM &cbm, llvm::GlobalVariable *surfCur) {
   auto *funcType = llvm::FunctionType::get(
       builder.getInt8Ty(), {builder.getInt64Ty(), builder.getInt64Ty()}, false);
   auto *func = llvm::Function::Create(funcType, llvm::Function::InternalLinkage,
-                                      "calcNeighboursCommon", llvmModule);
-
-  return func;
-}
-
-auto genCalcState(CBM &cbm, llvm::GlobalVariable *surfCur) {
-  auto &context = *cbm.context;
-  auto &builder = *cbm.builder;
-  auto *llvmModule = cbm.llvmModule;
-
-  auto *funcType = llvm::FunctionType::get(
-      builder.getInt8Ty(), {builder.getInt64Ty(), builder.getInt64Ty()}, false);
-  auto *func = llvm::Function::Create(funcType, llvm::Function::InternalLinkage,
-                                      "calcState", llvmModule);
+                                      "genCalcNeighboursCommon", llvmModule);
 
   auto *entryBB = llvm::BasicBlock::Create(context, "", func);
   builder.SetInsertPoint(entryBB);
@@ -175,6 +166,8 @@ auto genCalcState(CBM &cbm, llvm::GlobalVariable *surfCur) {
   builder.CreateRet(a55);
   return func;
 }
+
+auto genCalcNeighbours(CBM &cbm) {}
 
 auto genCalcSurf(CBM &cbm, llvm::GlobalVariable *surfNext,
                  llvm::Function *calcStateFunc) {
@@ -244,11 +237,7 @@ auto genCalcSurf(CBM &cbm, llvm::GlobalVariable *surfNext,
   return func;
 }
 
-auto genMain(CBM &cbm, llvm::GlobalVariable *surfCur,
-             llvm::GlobalVariable *surfNext, llvm::Function *fillRand,
-             llvm::Function *init, llvm::Function *finished,
-             llvm::Function *calcSurf, llvm::Function *swap,
-             llvm::Function *draw) {
+auto genMain(CBM &cbm) {
   auto &context = *cbm.context;
   auto &builder = *cbm.builder;
   auto *llvmModule = cbm.llvmModule;
@@ -270,27 +259,28 @@ auto genMain(CBM &cbm, llvm::GlobalVariable *surfCur,
     auto *bufNext = builder.CreateAlloca(arrayTy);
 
     auto *gepCur = builder.CreateConstGEP2_64(arrayTy, bufCur, 0, 0);
-    builder.CreateStore(gepCur, surfCur);
-    builder.CreateCall(fillRand);
+    builder.CreateStore(gepCur, llvmModule->getGlobalVariable("SURF_CUR"));
+    builder.CreateCall(llvmModule->getFunction("fillRand"));
 
     auto *gepNext = builder.CreateConstGEP2_64(arrayTy, bufNext, 0, 0);
-    builder.CreateStore(gepNext, surfNext);
-    builder.CreateCall(init, {builder.getInt64(H), builder.getInt64(W)});
+    builder.CreateStore(gepNext, llvmModule->getGlobalVariable("SURF_NEXT"));
+    builder.CreateCall(llvmModule->getFunction("init"),
+                       {builder.getInt64(H), builder.getInt64(W)});
     builder.CreateBr(condBB);
   }
 
   { /* loop.cond */
     builder.SetInsertPoint(condBB);
-    auto *call = builder.CreateCall(finished);
+    auto *call = builder.CreateCall(llvmModule->getFunction("finished"));
     auto *icmp = builder.CreateICmpEQ(call, builder.getInt8(0));
     builder.CreateCondBr(icmp, bodyBB, returnBB);
   }
 
   /* loop.body */
   builder.SetInsertPoint(bodyBB);
-  builder.CreateCall(calcSurf);
-  builder.CreateCall(swap);
-  builder.CreateCall(draw);
+  builder.CreateCall(llvmModule->getFunction("calcSurf"));
+  builder.CreateCall(llvmModule->getFunction("swap"));
+  builder.CreateCall(llvmModule->getFunction("draw"));
   builder.CreateBr(condBB);
 
   /* return */
@@ -312,6 +302,60 @@ auto *createGlobalSurf(CBM &cbm, llvm::Constant *val, std::string_view name) {
   return surf;
 }
 
+// int oldMain() {
+//   llvm::LLVMContext context{};
+//   llvm::IRBuilder builder{context};
+//   auto llvmModule = std::make_unique<llvm::Module>("top", context);
+//   CBM cbm{&context, &builder, llvmModule.get()};
+
+//   auto *nullVal = llvm::ConstantPointerNull::get(builder.getInt8PtrTy());
+//   auto *surfCur = createGlobalSurf(cbm, nullVal, "SURF_CUR");
+//   auto *surfNext = createGlobalSurf(cbm, nullVal, "SURF_NEXT");
+
+//   auto *getZeroOrOneFunc = genGetZeroOrOne(cbm);
+//   auto *initFunc = genInit(cbm);
+//   auto *finishedFunc = genFinished(cbm);
+
+//   auto *fillRandFunc = genFillRand(cbm, surfCur, getZeroOrOneFunc);
+
+//   auto *calcStateFunc = genCalcNeighboursCommon(cbm, surfCur);
+//   auto *calcSurfFunc = genCalcSurf(cbm, surfNext, calcStateFunc);
+
+//   genMain(cbm, surfCur, surfNext, fillRandFunc, initFunc, finishedFunc,
+//           calcSurfFunc, finishedFunc, finishedFunc);
+
+//   llvmModule->dump();
+//   return 0;
+// }
+
+int main2() {
+  llvm::LLVMContext context{};
+  llvm::IRBuilder builder{context};
+  auto llvmModule = std::make_unique<llvm::Module>("top", context);
+  CBM cbm{&context, &builder, llvmModule.get()};
+
+  auto *golMainFuncTy = llvm::FunctionType::get(builder.getInt32Ty(), false);
+  auto *golMainFunc =
+      llvm::Function::Create(golMainFuncTy, llvm::Function::ExternalLinkage,
+                             "golMain", llvmModule.get());
+
+  llvmModule->dump();
+
+  auto *ee = llvm::EngineBuilder(std::move(llvmModule)).create();
+  ee->InstallLazyFunctionCreator([&](const std::string &fnName) -> void * {
+    if (fnName == "golMain") {
+      return reinterpret_cast<void *>(golMain);
+    }
+    return nullptr;
+  });
+
+  ee->finalizeObject();
+  std::vector<llvm::GenericValue> noargs{};
+  ee->runFunction(golMainFunc, noargs);
+
+  return 0;
+}
+
 int main() {
   llvm::LLVMContext context{};
   llvm::IRBuilder builder{context};
@@ -322,18 +366,60 @@ int main() {
   auto *surfCur = createGlobalSurf(cbm, nullVal, "SURF_CUR");
   auto *surfNext = createGlobalSurf(cbm, nullVal, "SURF_NEXT");
 
-  auto *getZeroOrOneFunc = genGetZeroOrOne(cbm);
-  auto *initFunc = genInit(cbm);
-  auto *finishedFunc = genFinished(cbm);
+  genInit(cbm);
+  genFinished(cbm);
 
-  auto *fillRandFunc = genFillRand(cbm, surfCur, getZeroOrOneFunc);
+  auto *fillRandFuncTy =
+      llvm::FunctionType::get(cbm.builder->getVoidTy(), false);
+  llvm::Function::Create(fillRandFuncTy, llvm::Function::ExternalLinkage,
+                         "fillRand", cbm.llvmModule);
 
-  auto *calcStateFunc = genCalcState(cbm, surfCur);
-  auto *calcSurfFunc = genCalcSurf(cbm, surfNext, calcStateFunc);
+  auto *calcSurfFuncTy =
+      llvm::FunctionType::get(cbm.builder->getVoidTy(), false);
+  llvm::Function::Create(calcSurfFuncTy, llvm::Function::ExternalLinkage,
+                         "calcSurf", cbm.llvmModule);
 
-  genMain(cbm, surfCur, surfNext, fillRandFunc, initFunc, finishedFunc,
-          calcSurfFunc, finishedFunc, finishedFunc);
+  auto *swapFuncTy = llvm::FunctionType::get(cbm.builder->getVoidTy(), false);
+  llvm::Function::Create(swapFuncTy, llvm::Function::ExternalLinkage, "swap",
+                         cbm.llvmModule);
+
+  auto *drawFuncTy = llvm::FunctionType::get(cbm.builder->getVoidTy(), false);
+  llvm::Function::Create(drawFuncTy, llvm::Function::ExternalLinkage, "draw",
+                         cbm.llvmModule);
+
+  auto *golMain = genMain(cbm);
 
   llvmModule->dump();
+
+  auto *ee = llvm::EngineBuilder(std::move(llvmModule)).create();
+  ee->InstallLazyFunctionCreator([&](const std::string &fnName) -> void * {
+    if (fnName == "fillRand") {
+      return reinterpret_cast<void *>(fillRand);
+    }
+    if (fnName == "init") {
+      return reinterpret_cast<void *>(init);
+    }
+    if (fnName == "finished") {
+      return reinterpret_cast<void *>(finished);
+    }
+    if (fnName == "calcSurf") {
+      return reinterpret_cast<void *>(calcSurf);
+    }
+    if (fnName == "swap") {
+      return reinterpret_cast<void *>(swap);
+    }
+    if (fnName == "draw") {
+      return reinterpret_cast<void *>(draw);
+    }
+
+    return nullptr;
+  });
+
+  ee->addGlobalMapping(surfCur, reinterpret_cast<void *>(SURF_CUR));
+  ee->addGlobalMapping(surfNext, reinterpret_cast<void *>(SURF_NEXT));
+
+  ee->finalizeObject();
+  ee->runFunction(golMain, {});
+
   return 0;
 }

@@ -1,5 +1,5 @@
-#ifndef __GAMEOFLIFE_DRAW_HH__
-#define __GAMEOFLIFE_DRAW_HH__
+#ifndef __GAME_OF_LIFE_DRAW_HH__
+#define __GAME_OF_LIFE_DRAW_HH__
 
 #include <stddef.h>
 #include <stdint.h>
@@ -19,4 +19,4 @@ void flush(void);
 }
 #endif
 
-#endif // __GAMEOFLIFE_DRAW_HH__
+#endif // __GAME_OF_LIFE_DRAW_HH__
