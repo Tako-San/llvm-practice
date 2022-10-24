@@ -189,7 +189,7 @@ auto genDraw(CBM &cbm) {
   // %15 = load i64, i64* %1, align 8
   auto *a15 = builder.CreateLoad(builder.getInt64Ty(), a1);
   // %16 = call i64 @idx(i64 noundef %14, i64 noundef %15)
-  auto *a16 = builder.CreateCall(getFunction(llvmModule, "idx"), {a14, a5});
+  auto *a16 = builder.CreateCall(getFunction(llvmModule, "idx"), {a14, a15});
   // %17 = getelementptr inbounds i8, i8* %13, i64 %16
   auto *a17 = builder.CreateGEP(builder.getInt8Ty(), a13, a16);
   // %18 = load i8, i8* %17, align 1
@@ -223,7 +223,7 @@ auto genDraw(CBM &cbm) {
   // %25 = add i64 %24, 1
   auto *a25 = builder.CreateAdd(a24, builder.getInt64(1));
   // store i64 %25, i64* %1, align 8
-  builder.CreateStore(a24, a1);
+  builder.CreateStore(a25, a1);
   // br label %3, !llvm.loop !12
   builder.CreateBr(bb3);
 
@@ -246,40 +246,41 @@ auto genFillRand(CBM &cbm) {
   auto *func = llvm::Function::Create(funcType, llvm::Function::InternalLinkage,
                                       "fillRand", llvmModule);
 
-  auto *entryBB = llvm::BasicBlock::Create(context, "entry", func);
-  auto *returnBB = llvm::BasicBlock::Create(context, "return", func);
-  auto *loopBB = llvm::BasicBlock::Create(context, "loop", func);
+  auto *bb0 = llvm::BasicBlock::Create(context, "", func);
+  auto *bb1 = llvm::BasicBlock::Create(context, "", func);
+  auto *bb2 = llvm::BasicBlock::Create(context, "", func);
 
-  { /* entry */
-    builder.SetInsertPoint(entryBB);
-    builder.CreateBr(loopBB);
-  }
+  builder.SetInsertPoint(bb0);
+  //   br label %2
+  builder.CreateBr(bb2);
 
-  { /* return */
-    builder.SetInsertPoint(returnBB);
-    builder.CreateRetVoid();
-  }
+  // 1:                                                ; preds = %2
+  builder.SetInsertPoint(bb1);
+  // ret void
+  builder.CreateRetVoid();
 
-  { /* loop */
-    builder.SetInsertPoint(loopBB);
+  // 2:                                                ; preds = %0, %2
+  builder.SetInsertPoint(bb2);
+  // %3 = phi i64 [ 0, %0 ], [ %7, %2 ]
+  auto *a3 = builder.CreatePHI(builder.getInt64Ty(), 2);
+  // %4 = tail call zeroext i8 @getZeroOrOne() #7
+  auto *a4 = builder.CreateCall(getFunction(llvmModule, "getZeroOrOne"));
+  // %5 = load i8*, i8** @SURF_CUR, align 8, !tbaa !5
+  auto *a5 = builder.CreateLoad(builder.getInt8PtrTy(),
+                                getGlobalVariable(llvmModule, "SURF_CUR"));
+  // %6 = getelementptr inbounds i8, i8* %5, i64 %3
+  auto *a6 = builder.CreateGEP(builder.getInt8Ty(), a5, a3);
+  // store i8 %4, i8* %6, align 1, !tbaa !9
+  builder.CreateStore(a4, a6);
+  // %7 = add nuw nsw i64 %3, 1
+  auto *a7 = builder.CreateAdd(a3, builder.getInt64(1), "", true, true);
+  // %8 = icmp eq i64 %7, 230400
+  auto *a8 = builder.CreateICmpEQ(a7, builder.getInt64(HxW));
+  // br i1 %8, label %1, label %2, !llvm.loop !13
+  builder.CreateCondBr(a8, bb1, bb2);
 
-    auto *idx = builder.CreatePHI(builder.getInt64Ty(), 2, "idx");
-    idx->addIncoming(builder.getInt64(0), entryBB);
-
-    auto *zeroOrOne = builder.CreateCall(
-        getFunction(llvmModule, "getZeroOrOne"), llvm::None, "val");
-    auto *surfCur = getGlobalVariable(llvmModule, "SURF_CUR");
-    auto *surf = builder.CreateLoad(surfCur->getValueType(), surfCur, "surf");
-    auto *ePtr = builder.CreateGEP(builder.getInt8Ty(), surf, idx, "ePtr");
-    builder.CreateStore(zeroOrOne, ePtr);
-
-    auto *inc = builder.CreateAdd(idx, builder.getInt64(1), "inc", true, true);
-    idx->addIncoming(inc, loopBB);
-
-    auto *cmp = builder.CreateICmp(llvm::CmpInst::ICMP_EQ, inc,
-                                   builder.getInt64(HxW), "cmp");
-    builder.CreateCondBr(cmp, returnBB, loopBB);
-  }
+  a3->addIncoming(builder.getInt64(0), bb0);
+  a3->addIncoming(a7, bb2);
 
   return func;
 }
@@ -468,63 +469,68 @@ auto genCalcSurf(CBM &cbm) {
   auto *func = llvm::Function::Create(funcType, llvm::Function::InternalLinkage,
                                       "calcSurf", llvmModule);
 
-  auto *entryBB = llvm::BasicBlock::Create(context, "entry", func);
-  auto *hLoopBB = llvm::BasicBlock::Create(context, "loop.cond.height", func);
-  auto *returnBB = llvm::BasicBlock::Create(context, "return", func);
-  auto *wLoopBB = llvm::BasicBlock::Create(context, "loop.cond.width", func);
-  auto *bodyBB = llvm::BasicBlock::Create(context, "loop.body", func);
+  auto *bb0 = llvm::BasicBlock::Create(context, "", func);
+  auto *bb1 = llvm::BasicBlock::Create(context, "", func);
+  auto *bb4 = llvm::BasicBlock::Create(context, "", func);
+  auto *bb5 = llvm::BasicBlock::Create(context, "", func);
+  auto *bb8 = llvm::BasicBlock::Create(context, "", func);
 
-  /* entry */
+  builder.SetInsertPoint(bb0);
 
-  builder.SetInsertPoint(entryBB);
-  builder.CreateBr(wLoopBB);
+  // br label %1
+  builder.CreateBr(bb1);
 
-  /* loop.cond.height */
-  builder.SetInsertPoint(hLoopBB);
+  // 1:                                                ; preds = %0, %5
+  builder.SetInsertPoint(bb1);
+  // %2 = phi i64 [ 0, %0 ], [ %6, %5 ]
+  auto *a2 = builder.CreatePHI(builder.getInt64Ty(), 2);
+  // %3 = mul nuw nsw i64 %2, 640
+  auto *a3 = builder.CreateMul(a2, builder.getInt64(W), "", true, true);
+  // br label %8
+  builder.CreateBr(bb8);
 
-  auto *line = builder.CreatePHI(builder.getInt64Ty(), 2, "line");
-  line->addIncoming(builder.getInt64(0), entryBB);
-
-  auto *offset =
-      builder.CreateMul(line, builder.getInt64(640), "offset", true, true);
-  builder.CreateBr(bodyBB);
-
-  /* return */
-  builder.SetInsertPoint(returnBB);
+  // 4:                                                ; preds = %5
+  builder.SetInsertPoint(bb4);
+  // ret void
   builder.CreateRetVoid();
 
-  { /* loop.cond.width */
-    builder.SetInsertPoint(wLoopBB);
+  // 5:                                                ; preds = %8
+  builder.SetInsertPoint(bb5);
+  // %6 = add nuw nsw i64 %2, 1
+  auto *a6 = builder.CreateAdd(a2, builder.getInt64(1), "", true, true);
+  // %7 = icmp eq i64 %6, 360
+  auto *a7 = builder.CreateICmpEQ(a6, builder.getInt64(H));
+  // br i1 %7, label %4, label %1, !llvm.loop !10
+  builder.CreateCondBr(a7, bb4, bb1);
 
-    auto *add = builder.CreateAdd(line, builder.getInt64(1), "", true, true);
-    line->addIncoming(add, wLoopBB);
+  // 8:                                                ; preds = %1, %8
+  builder.SetInsertPoint(bb8);
+  // %9 = phi i64 [ 0, %1 ], [ %14, %8 ]
+  auto *a9 = builder.CreatePHI(builder.getInt64Ty(), 2);
+  // %10 = tail call zeroext i8 @calcState(i64 noundef %9, i64 noundef %2)
+  auto *a10 =
+      builder.CreateCall(getFunction(llvmModule, "calcState"), {a9, a2});
+  // %11 = load i8*, i8** @SURF_NEXT, align 8, !tbaa !5
+  auto *a11 = builder.CreateLoad(builder.getInt8PtrTy(),
+                                 getGlobalVariable(llvmModule, "SURF_NEXT"));
+  // %12 = add nuw nsw i64 %9, %3
+  auto *a12 = builder.CreateAdd(a9, a3, "", true, true);
+  // %13 = getelementptr inbounds i8, i8* %11, i64 %12
+  auto *a13 = builder.CreateGEP(builder.getInt8Ty(), a11, a12);
+  // store i8 %10, i8* %13, align 1, !tbaa !9
+  builder.CreateStore(a10, a13);
+  // %14 = add nuw nsw i64 %9, 1
+  auto *a14 = builder.CreateAdd(a9, builder.getInt64(1), "", true, true);
+  // %15 = icmp eq i64 %14, 640
+  auto *a15 = builder.CreateICmpEQ(a14, builder.getInt64(W));
+  // br i1 %15, label %5, label %8, !llvm.loop !12
+  builder.CreateCondBr(a15, bb5, bb8);
 
-    auto *icmp = builder.CreateICmpEQ(add, builder.getInt64(360));
-    builder.CreateCondBr(icmp, returnBB, hLoopBB);
-  }
+  a2->addIncoming(builder.getInt64(0), bb0);
+  a2->addIncoming(a6, bb5);
 
-  { /* loop.body */
-    builder.SetInsertPoint(bodyBB);
-
-    auto *col = builder.CreatePHI(builder.getInt64Ty(), 2, "col");
-    col->addIncoming(builder.getInt64(0), hLoopBB);
-
-    auto *idx = builder.CreateAdd(col, offset, "idx", true, true);
-    auto *surf =
-        builder.CreateLoad(builder.getInt8PtrTy(),
-                           getGlobalVariable(llvmModule, "SURF_NEXT"), "surf");
-    auto *gep = builder.CreateGEP(builder.getInt8Ty(), surf, idx, "ptr");
-
-    auto *val = builder.CreateCall(getFunction(llvmModule, "calcState"),
-                                   {col, line}, "val");
-    builder.CreateStore(val, gep);
-
-    auto *add = builder.CreateAdd(col, builder.getInt64(1));
-    col->addIncoming(add, bodyBB);
-
-    auto *icmp = builder.CreateICmpEQ(add, builder.getInt64(640));
-    builder.CreateCondBr(icmp, wLoopBB, bodyBB);
-  }
+  a9->addIncoming(builder.getInt64(0), bb1);
+  a9->addIncoming(a14, bb8);
 
   return func;
 }
@@ -590,8 +596,7 @@ auto genCalcState(CBM &cbm) {
   auto *llvmModule = cbm.llvmModule;
 
   auto *funcType = llvm::FunctionType::get(
-      builder.getInt32Ty(), {builder.getInt64Ty(), builder.getInt64Ty()},
-      false);
+      builder.getInt8Ty(), {builder.getInt64Ty(), builder.getInt64Ty()}, false);
   auto *func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage,
                                       "calcState", llvmModule);
 
@@ -645,9 +650,9 @@ auto genCalcState(CBM &cbm) {
   auto *a13 = builder.CreateLoad(builder.getInt8PtrTy(),
                                  getGlobalVariable(llvmModule, "SURF_CUR"));
   // %14 = load i64, i64* %4, align 8
-  auto *a14 = builder.CreateLoad(builder.getInt8PtrTy(), a4);
+  auto *a14 = builder.CreateLoad(builder.getInt64Ty(), a4);
   // %15 = load i64, i64* %5, align 8
-  auto *a15 = builder.CreateLoad(builder.getInt8PtrTy(), a5);
+  auto *a15 = builder.CreateLoad(builder.getInt64Ty(), a5);
   // %16 = call i64 @idx(i64 noundef %14, i64 noundef %15)
   auto *a16 = builder.CreateCall(getFunction(llvmModule, "idx"), {a14, a15});
   // %17 = getelementptr inbounds i8, i8* %13, i64 %16
@@ -885,31 +890,18 @@ int main() {
   auto *surfNext = createGlobalSurf(cbm, nullVal, "SURF_NEXT");
 
   int i = 0;
-  std::cout << i++ << std::endl; // 0
   genInit(cbm);
-  std::cout << i++ << std::endl; // 1
   genGetZeroOrOne(cbm);
-  std::cout << i++ << std::endl; // 2
   genFinished(cbm);
-  std::cout << i++ << std::endl; // 3
   genFillRand(cbm);
-  std::cout << i++ << std::endl; // 4
   genCountNeighboursCommon(cbm);
-  std::cout << i++ << std::endl; // 5
   genCountNeighbours(cbm);
-  std::cout << i++ << std::endl; // 6
   genIdx(cbm);
-  std::cout << i++ << std::endl; // 7
   genCalcState(cbm);
-  std::cout << i++ << std::endl; // 8
   genCalcSurf(cbm);
-  std::cout << i++ << std::endl; // 9
   genSwap(cbm);
-  std::cout << i++ << std::endl; // 10
   genPutPixel(cbm);
-  std::cout << i++ << std::endl; // 11
   genFlush(cbm);
-  std::cout << i++ << std::endl; // 12
   genDraw(cbm);
 
   auto *mainFunc = genMain(cbm);
@@ -918,13 +910,12 @@ int main() {
 
   std::cout << i++ << std::endl; // 13
   auto *ee = llvm::EngineBuilder(std::move(llvmModule)).create();
-  // ee->addGlobalMapping(surfCur, reinterpret_cast<void *>(SURF_CUR));
-  // ee->addGlobalMapping(surfNext, reinterpret_cast<void *>(SURF_NEXT));
 
   std::unordered_map<std::string, void *> externalFunctions{
       {"getZeroOrOne", reinterpret_cast<void *>(getZeroOrOne)},
       {"init", reinterpret_cast<void *>(init)},
       {"putPixel", reinterpret_cast<void *>(putPixel)},
+      {"flush", reinterpret_cast<void *>(flush)},
       {"finished", reinterpret_cast<void *>(finished)}};
 
   ee->InstallLazyFunctionCreator([&](const std::string &fnName) -> void * {
@@ -934,15 +925,10 @@ int main() {
     return it->second;
   });
 
-  std::cout << i++ << std::endl; // 14
-
   ee->finalizeObject();
-  std::cout << i++ << std::endl; // 15
   std::vector<llvm::GenericValue> noargs{};
   ee->runFunction(mainFunc, noargs);
-  std::cout << i++ << std::endl; // 16
 
   std::cout << ee->getErrorMessage() << std::endl;
-
   return 0;
 }
