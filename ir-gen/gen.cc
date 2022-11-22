@@ -865,7 +865,6 @@ auto genMain(CBM &cbm) {
 }
 
 auto *createGlobalSurf(CBM &cbm, llvm::Constant *val, std::string_view name) {
-  auto &context = *cbm.context;
   auto &builder = *cbm.builder;
   auto *llvmModule = cbm.llvmModule;
 
@@ -886,8 +885,8 @@ int main() {
   CBM cbm{&context, &builder, llvmModule.get()};
 
   auto *nullVal = llvm::ConstantPointerNull::get(builder.getInt8PtrTy());
-  auto *surfCur = createGlobalSurf(cbm, nullVal, "SURF_CUR");
-  auto *surfNext = createGlobalSurf(cbm, nullVal, "SURF_NEXT");
+  createGlobalSurf(cbm, nullVal, "SURF_CUR");
+  createGlobalSurf(cbm, nullVal, "SURF_NEXT");
 
   int i = 0;
   genInit(cbm);
