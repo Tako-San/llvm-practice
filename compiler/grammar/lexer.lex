@@ -1,54 +1,87 @@
 %option c++
+
 %option noyywrap debug
+%option yylineno
+
+%s IN_COMMENT
+
 %{
+
 #include "parser.hh"
+
 %}
 
-WS [ \t\n\v]+
-INTEGER [0]|[1-9][0-9]*
-NAME [a-zA-Z][a-zA-Z0-9]*
+WS          [ \t\n\v]+
+COMM        "//".*"\n"
+
+DIGIT       [0-9]
+
+LETTER      [a-zA-Z]
+LETTER_D    [A-Za-z0-9_]
+
+INT         [1-9]{DIGIT}*
+ID          {LETTER}{LETTER_D}*
 
 %%
-"return"    { return yy::parser::token_type::RETURN; }
-"while"     { return yy::parser::token_type::WHILE; }
-"if"        { return yy::parser::token_type::IF; }
-"fn"        { return yy::parser::token_type::FN; }
 
-";"         { return yy::parser::token_type::SCOLON; }
-"{"         { return yy::parser::token_type::LCB; }
-"}"         { return yy::parser::token_type::RCB; }
-"("         { return yy::parser::token_type::LRB; }
-")"         { return yy::parser::token_type::RRB; }
-"["         { return yy::parser::token_type::LAB; }
-"]"         { return yy::parser::token_type::RAB; }
-","         { return yy::parser::token_type::COMMA; }
+{WS}                 /* skip blanks and tabs */
+{COMM}               /* skip comments to the end of line */
 
-"print"     { return yy::parser::token_type::OUTPUT; }
+<INITIAL>"/*"        {BEGIN(IN_COMMENT);}
 
-">="        { return yy::parser::token_type::GREATER_OR_EQUAL; }
-"<="        { return yy::parser::token_type::LESS_OR_EQUAL; }
-">"         { return yy::parser::token_type::GREATER; }
-"<"         { return yy::parser::token_type::LESS; }
-"=="        { return yy::parser::token_type::EQUAL; }
-"!="        { return yy::parser::token_type::NOT_EQUAL; }
+<IN_COMMENT>"*/"     {BEGIN(INITIAL);}
 
-"="         { return yy::parser::token_type::ASSIGN; }
+<IN_COMMENT>[^*\n]+  /* skip comments */
+<IN_COMMENT>"*"      /* skip lone star */
 
-"?"         { return yy::parser::token_type::INPUT; }
+{INT}                { return yy::parser::token_type::INT; }
 
-"||"        { return yy::parser::token_type::OR; }
-"&&"        { return yy::parser::token_type::AND; }
-"!"         { return yy::parser::token_type::NOT; }
+{ID}                 { return yy::parser::token_type::ID; }
 
-"+"         { return yy::parser::token_type::PLUS; }
-"-"         { return yy::parser::token_type::MINUS; }
+"+"                  { return yy::parser::token_type::ADD; }
+"-"                  { return yy::parser::token_type::SUB; }
+"*"                  { return yy::parser::token_type::MUL; }
+"/"                  { return yy::parser::token_type::DIV; }
+"%"                  { return yy::parser::token_type::MOD; }
+":="                 { return yy::parser::token_type::ASSIGN; }
 
-"*"         { return yy::parser::token_type::MUL; }
-"/"         { return yy::parser::token_type::DIV; }
-"%"         { return yy::parser::token_type::MOD; }
+"or"                 { return yy::parser::token_type::OR; }
+"and"                { return yy::parser::token_type::AND; }
+"xor"                { return yy::parser::token_type::XOR; }
 
-{WS}
-{INTEGER}   { return yy::parser::token_type::INTEGER; }
-{NAME}      { return yy::parser::token_type::IDENTIFIER; }
+">"                  { return yy::parser::token_type::GREATER; }
+"<"                  { return yy::parser::token_type::LESS; }
+">="                 { return yy::parser::token_type::GR_EQ; }
+"<="                 { return yy::parser::token_type::LS_EQ; }
+"=="                 { return yy::parser::token_type::IS_EQ; }
+"!="                 { return yy::parser::token_type::NOT_EQ; }
+
+","                  { return yy::parser::token_type::COMMA; }
+":"                  { return yy::parser::token_type::COLON; }
+";"                  { return yy::parser::token_type::SCOLON; }
+
+"("                  { return yy::parser::token_type::LRB; }
+")"                  { return yy::parser::token_type::RRB; }
+"["                  { return yy::parser::token_type::LSB; }
+"]"                  { return yy::parser::token_type::RSB; }
+
+"if"                 { return yy::parser::token_type::IF; }
+"then"               { return yy::parser::token_type::THEN; }
+"else"               { return yy::parser::token_type::ELSE; }
+"while"              { return yy::parser::token_type::WHILE; }
+"return"             { return yy::parser::token_type::RETURN; }
+"routine"            { return yy::parser::token_type::ROUTINE; }
+"var"                { return yy::parser::token_type::VAR; }
+"is"                 { return yy::parser::token_type::IS; }
+"loop"               { return yy::parser::token_type::LOOP; }
+"end"                { return yy::parser::token_type::END; }
+
+"array"              { return yy::parser::token_type::ARRAY; }
+"integer"            { return yy::parser::token_type::INT_TYPE; }
+
+"scan"               { return yy::parser::token_type::SCAN; }
+"print"              { return yy::parser::token_type::PRINT; }
+
+.                    { return yy::parser::token_type::ERR; }
 
 %%
